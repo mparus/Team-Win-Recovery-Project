@@ -11,6 +11,8 @@ on early-init
     start ueventd
     start healthd
 
+    mkdir /firmware 0771 system system
+
 service set_permissive /sbin/toolbox setenforce 0
     oneshot
     seclabel u:r:recovery:s0
@@ -21,6 +23,7 @@ on init
     export ANDROID_ROOT /system
     export ANDROID_DATA /data
     export EXTERNAL_STORAGE /sdcard
+    export USBHOST_STORAGE /usbdisk
 
     mkdir /boot
     mkdir /recovery
@@ -28,6 +31,7 @@ on init
     mkdir /data
     mkdir /cache
     mkdir /sideload
+    mkdir /usbdisk
     mount tmpfs tmpfs /tmp
 
     chown root shell /tmp
@@ -52,6 +56,12 @@ on fs
     write /sys/class/android_usb/android0/iProduct ${ro.product.model}
     write /sys/class/android_usb/android0/iSerial ${ro.serialno}
 
+    wait /dev/block/bootdevice/by-name/modem
+    mount vfat /dev/block/bootdevice/by-name/modem /firmware ro shortname=lower,uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_file:s0
+
+#    wait /dev/block/bootdevice/by-name/system
+#    mount ext4 /dev/block/bootdevice/by-name/system /system ro
+
 on boot
     ifup lo
     hostname localhost
@@ -65,6 +75,7 @@ on load_all_props_action
 
 on firmware_mounts_complete
    rm /dev/.booting
+   symlink /system/vendor /vendor
 
 # Mount filesystems and start core system services.
 on late-init
@@ -130,6 +141,8 @@ service adbd /sbin/adbd --root_seclabel=u:r:su:s0 --device_banner=recovery
     disabled
     socket adbd stream 660 system system
     seclabel u:r:adbd:s0
+
+service qseecomd /bin/qseecomd
 
 # Always start adbd on userdebug and eng builds
 on property:ro.debuggable=1
